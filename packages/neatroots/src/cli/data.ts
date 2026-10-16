@@ -128,6 +128,7 @@ export function registerDataCommands(program: Command): void {
     .action(async (project: string, command: string | undefined, opts) => {
       if (!command && !opts.url) throw new Error("give a command, or --url for an HTTP replay endpoint");
       const entry = { command, cwd: command ? path.resolve(opts.cwd ?? process.cwd()) : undefined, url: opts.url };
+      if (entry.cwd && !fs.existsSync(entry.cwd)) throw new Error(`the rerun folder does not exist: ${entry.cwd}`);
       const p = port();
       if (await running(p)) await api(p, `/api/projects/${encodeURIComponent(project)}/rerun`, { method: "POST", body: JSON.stringify(entry) });
       else {

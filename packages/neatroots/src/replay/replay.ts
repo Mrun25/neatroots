@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import crypto from "node:crypto";
 import type { Roots } from "../core.js";
 import { loadTrace, runGoal } from "../engine/trace.js";
@@ -261,7 +262,9 @@ export class Replays {
         };
         if (o.model) env.NEATROOTS_REPLAY_MODEL = o.model;
         if (o.system) env.NEATROOTS_REPLAY_SYSTEM_PROMPT = o.system;
-        const code = await new Promise<number | null>((resolve) => {
+        // A deleted cwd makes spawn emit error (not close), which is fatal without a listener.
+        if (target.cwd && !existsSync(target.cwd)) throw new Error(`the rerun folder no longer exists: ${target.cwd}`);
+        const code = await new Promise<number | null>((resolve, reject) => {
           const child = spawn(target.command!, { shell: true, cwd: target.cwd, env });
           const keep = (b: Buffer) => {
             tail = (tail + b.toString()).slice(-6000);
@@ -272,6 +275,10 @@ export class Replays {
           child.on("close", (c) => {
             clearTimeout(timer);
             resolve(c);
+          });
+          child.on("error", (err) => {
+            clearTimeout(timer);
+            reject(err);
           });
         });
         if (code !== 0) log.info(`replay ${r.id}: the agent exited with ${code}`);

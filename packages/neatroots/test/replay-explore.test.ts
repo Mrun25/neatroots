@@ -1,3 +1,5 @@
+import os from "node:os";
+import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { loadTrace } from "../src/engine/trace.js";
 import { EXPLORE_TOOLS } from "../src/mcp/explore-tools.js";
@@ -82,6 +84,28 @@ describe("replay", () => {
     expect(run.output_preview).toContain("model=small-model");
     expect(() => t!.roots.replays.startRun(hex(16))).toThrow(/run not found/);
   }, 30_000);
+
+  it("fails the replay instead of crashing when the rerun folder is gone", async () => {
+    t = await makeRoots({ noEngine: true, serve: true });
+    const x = seed(t);
+    t.roots.config.rerun["support-agent"] = { command: "echo hi", cwd: path.join(os.tmpdir(), `neatroots-gone-${hex(4)}`) };
+    const { done } = t.roots.replays.startRun(x.traceId, {});
+    const r = await done;
+    expect(r).toMatchObject({ state: "failed" });
+    expect(r.error).toMatch(/rerun folder no longer exists/);
+  });
+
+  it("refuses to register a rerun command whose folder does not exist", async () => {
+    t = await makeRoots({ noEngine: true, serve: true });
+    const res = await fetch(`${t.url}/api/projects/support-agent/rerun`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ command: "echo hi", cwd: path.join(os.tmpdir(), `neatroots-gone-${hex(4)}`) }),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toMatch(/rerun folder does not exist/);
+    expect(t.roots.config.rerun["support-agent"]).toBeUndefined();
+  });
 
   it("marks replays left running as failed on restart", async () => {
     t = await makeRoots({ noEngine: true });

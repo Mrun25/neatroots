@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import type { Hono } from "hono";
 import type { Roots } from "../core.js";
 import { loadTrace } from "../engine/trace.js";
@@ -218,8 +219,10 @@ export function mountExploreApi(app: Hono, roots: Roots): void {
     const command = b.command?.trim() || undefined;
     const url = b.url?.trim() || undefined;
     if (url && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?\//.test(url)) return err(c, 400, "the replay endpoint must be on this machine (http://localhost:…/)");
+    const cwd = b.cwd?.trim() || undefined;
+    if (command && cwd && !existsSync(cwd)) return err(c, 400, `the rerun folder does not exist: ${cwd}`);
     if (!command && !url) delete roots.config.rerun[project];
-    else roots.config.rerun[project] = { command, cwd: b.cwd?.trim() || undefined, url };
+    else roots.config.rerun[project] = { command, cwd, url };
     roots.saveConfig();
     return c.json({ project, rerun: roots.config.rerun[project] ?? null });
   });
